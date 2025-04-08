@@ -230,7 +230,6 @@ class WeightedProduct {
   TextEditingController oldQtyController = TextEditingController();
   TextEditingController newCostController = TextEditingController();
   TextEditingController newQtyController = TextEditingController();
-
   double result = 0.0;
 }
 
@@ -243,19 +242,25 @@ class WeightedCostScreen extends StatefulWidget {
 
 class _WeightedCostScreenState extends State<WeightedCostScreen> {
   final List<WeightedProduct> products = [];
-  final TextEditingController totalFreightController = TextEditingController();
+  final TextEditingController freightController = TextEditingController();
+  final TextEditingController bonusController = TextEditingController();
+
+  bool hasFreight = false;
+  bool hasBonus = false;
 
   void calculateWeightedCosts() {
     double totalNewQty = 0.0;
 
-    // Somar quantidade comprada de todos os produtos
     for (var product in products) {
       final newQty = double.tryParse(product.newQtyController.text.replaceAll(',', '.')) ?? 0.0;
       totalNewQty += newQty;
     }
 
-    final freight = double.tryParse(totalFreightController.text.replaceAll(',', '.')) ?? 0.0;
+    final freight = hasFreight ? double.tryParse(freightController.text.replaceAll(',', '.')) ?? 0.0 : 0.0;
+    final bonus = hasBonus ? double.tryParse(bonusController.text.replaceAll(',', '.')) ?? 0.0 : 0.0;
+
     final freightPerUnit = totalNewQty > 0 ? freight / totalNewQty : 0.0;
+    final bonusPerUnit = totalNewQty > 0 ? bonus / totalNewQty : 0.0;
 
     setState(() {
       for (var product in products) {
@@ -264,11 +269,11 @@ class _WeightedCostScreenState extends State<WeightedCostScreen> {
         final newCost = double.tryParse(product.newCostController.text.replaceAll(',', '.')) ?? 0.0;
         final newQty = double.tryParse(product.newQtyController.text.replaceAll(',', '.')) ?? 0.0;
 
-        final newCostWithFreight = newCost + freightPerUnit;
+        final newCostWithExtras = newCost + freightPerUnit - bonusPerUnit;
 
         final totalQty = oldQty + newQty;
         final weightedCost = totalQty > 0
-            ? ((oldCost * oldQty) + (newCostWithFreight * newQty)) / totalQty
+            ? ((oldCost * oldQty) + (newCostWithExtras * newQty)) / totalQty
             : 0.0;
 
         product.result = weightedCost;
@@ -278,88 +283,138 @@ class _WeightedCostScreenState extends State<WeightedCostScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          TextField(
-            controller: totalFreightController,
-            decoration: const InputDecoration(
-              labelText: 'Frete Total da Compra',
-              border: OutlineInputBorder(),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+        child: Column(
+          children: [
+            CheckboxListTile(
+              title: const Text('Tem frete?'),
+              value: hasFreight,
+              onChanged: (value) {
+                setState(() {
+                  hasFreight = value ?? false;
+                });
+              },
             ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView(
-              children: [
-                ...products.map((product) => Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          children: [
-                            TextField(
-                              controller: product.oldCostController,
-                              decoration: const InputDecoration(labelText: 'Custo Anterior'),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            ),
-                            TextField(
-                              controller: product.oldQtyController,
-                              decoration: const InputDecoration(labelText: 'Estoque Anterior'),
-                              keyboardType: TextInputType.number,
-                            ),
-                            TextField(
-                              controller: product.newCostController,
-                              decoration: const InputDecoration(labelText: 'Custo da Nova Compra'),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            ),
-                            TextField(
-                              controller: product.newQtyController,
-                              decoration: const InputDecoration(labelText: 'Quantidade Comprada'),
-                              keyboardType: TextInputType.number,
-                            ),
-                            const SizedBox(height: 8),
-                            if (product.result > 0)
-                              Text(
-                                'Novo Custo Médio: ${product.result.toStringAsPrecision(10)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () {
-                                  setState(() {
-                                    products.remove(product);
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      products.add(WeightedProduct());
-                    });
-                  },
-                  child: const Text('Adicionar Produto'),
+            if (hasFreight)
+              TextField(
+                controller: freightController,
+                decoration: const InputDecoration(
+                  labelText: 'Valor do Frete',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: calculateWeightedCosts,
-                  child: const Text('Calcular Custo Médio'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              title: const Text('Tem bonificação?'),
+              value: hasBonus,
+              onChanged: (value) {
+                setState(() {
+                  hasBonus = value ?? false;
+                });
+              },
+            ),
+            if (hasBonus)
+              TextField(
+                controller: bonusController,
+                decoration: const InputDecoration(
+                  labelText: 'Valor da Bonificação',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        products.add(WeightedProduct());
+                      });
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar Produto'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: calculateWeightedCosts,
+                    icon: const Icon(Icons.calculate),
+                    label: const Text('Calcular Custo Médio'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView(
+                children: products.map((product) {
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          _buildTextField(product.oldCostController, 'Custo Anterior'),
+                          const SizedBox(height: 8),
+                          _buildTextField(product.oldQtyController, 'Estoque Anterior'),
+                          const SizedBox(height: 8),
+                          _buildTextField(product.newCostController, 'Custo da Nova Compra'),
+                          const SizedBox(height: 8),
+                          _buildTextField(product.newQtyController, 'Quantidade Comprada'),
+                          const SizedBox(height: 12),
+                          if (product.result > 0)
+                            Text(
+                              'Novo Custo Médio: ${product.result.toStringAsPrecision(10)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.redAccent),
+                              onPressed: () {
+                                setState(() {
+                                  products.remove(product);
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
+  Widget _buildTextField(TextEditingController controller, String label) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFF0F0F0),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    );
+  }
+}
